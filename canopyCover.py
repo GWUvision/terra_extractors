@@ -37,18 +37,12 @@ def options():
 
     return args
 
-def full_season_cc_frame(raw_rgb_dir, out_dir, start_date, end_date):
+def full_season_cc_frame(raw_rgb_dir, out_dir, start_date, end_date, convt):
     
     # initialize data structure
     d0 = datetime.strptime(start_date, '%Y-%m-%d').date()
     d1 = datetime.strptime(end_date, '%Y-%m-%d').date()
     deltaDay = d1 - d0
-    
-    convt = terra_common.CoordinateConverter()
-    qFlag = convt.bety_query('2019-06-18') # All plot boundaries in one season should be the same, currently 2019-06-18 works best
-    
-    if not qFlag:
-        return
     
     print(deltaDay.days)
     
@@ -222,7 +216,7 @@ def modify_param_process(in_dir, out_dir, csv_dir):
     
     return
 
-def full_season_cc_integrate(cc_dir, out_dir, start_date, end_date):
+def full_season_cc_integrate(cc_dir, out_dir, start_date, end_date, convt):
     
     # initialize data structure
     d0 = datetime.strptime(start_date, '%Y-%m-%d').date()
@@ -238,12 +232,9 @@ def full_season_cc_integrate(cc_dir, out_dir, start_date, end_date):
         str_date = str(d0+timedelta(days=i))
         print(str_date)
         
-        cc_path = os.path.join(cc_dir, str_date)
+        #out_path = os.path.join(out_dir, str_date)
         
-        out_path = os.path.join(out_dir, str_date)
-        
-        #crop_rgb_imageToPlot(raw_path, out_path, plot_dir, convt)
-        integrate_cc_results(cc_dir, str_date, out_path)
+        integrate_cc_results(cc_dir, str_date, out_dir, convt)
     
     return
 
@@ -404,11 +395,14 @@ def get_plot_range_column(metadata, convt):
     
     return plot_row, plot_col
 
-def load_one_day_cc_result(in_dir):
+def load_one_day_cc_result(in_dir, convt):
+    
+    if not os.path.isdir(in_dir):
+        return
     
     list_dirs = os.walk(in_dir)
     
-    cc_lst = [[[] for i in range(16)] for j in range(54)]
+    cc_lst = [[[] for i in range(convt.max_col)] for j in range(convt.max_range)]
     
     for root, dirs, files in list_dirs:
         for dir in dirs:
@@ -457,17 +451,19 @@ def get_result_from_file(file_path):
     
     return plot_row, plot_col, cc
 
-def integrate_cc_results(in_dir, str_date, out_dir):
+def integrate_cc_results(in_dir, str_date, out_dir, convt):
     
     sub_path = os.path.join(in_dir, str_date)
     print('start loading cc result')
-    one_day_list = load_one_day_cc_result(sub_path)
+    one_day_list = load_one_day_cc_result(sub_path, convt)
+    if one_day_list == None:
+        return
     
-    gen_BETY_csv(one_day_list, str_date, out_dir)
+    gen_BETY_csv(one_day_list, str_date, out_dir, convt)
 
     return
 
-def gen_BETY_csv(cc_list, str_date, out_dir):
+def gen_BETY_csv(cc_list, str_date, out_dir, convt):
     
     if not os.path.isdir(out_dir):
         os.mkdir(out_dir)
@@ -479,8 +475,8 @@ def gen_BETY_csv(cc_list, str_date, out_dir):
     (fields, traits) = get_traits_table()
     csv_handle.write(','.join(map(str, fields)) + '\n')
     
-    for plot_row in range(54):
-        for plot_col in range(16):
+    for plot_row in range(convt.max_range):
+        for plot_col in range(convt.max_col):
             plotData = cc_list[plot_row][plot_col]
             dataNum = len(plotData)
             
@@ -491,15 +487,15 @@ def gen_BETY_csv(cc_list, str_date, out_dir):
             str_time = str_date+'T12:00:00'
             traits['local_datetime'] = str_time
             traits['canopy_cover'] = ccAve
-            traits['site'] = parse_site_from_range_column(plot_row, plot_col, 4)
+            traits['site'] = parse_site_from_range_column(plot_row, plot_col, convt.seasonNum)
             trait_list = generate_traits_list(traits)
             csv_handle.write(','.join(map(str, trait_list)) + '\n')
             
     
     csv_handle.close()
     
-    npy_path = os.path.join(out_dir, str_date+'_nparray.npy')
-    np.save(npy_path, cc_list)
+    #npy_path = os.path.join(out_dir, str_date+'_nparray.npy')
+    #np.save(npy_path, cc_list)
     
     return
 
@@ -952,9 +948,15 @@ def main():
     start_date = '2019-04-18'
     end_date = '2019-08-31'
     
-    full_season_cc_frame(args.in_dir, args.out_dir, start_date, end_date)
+    convt = terra_common.CoordinateConverter()
+    qFlag = convt.bety_query('2019-06-18') # All plot boundaries in one season should be the same, currently 2019-06-18 works best
     
-    full_season_cc_integrate(args.out_dir, args.csv_dir, start_date, end_date)
+    if not qFlag:
+        return
+    
+    #full_season_cc_frame(args.in_dir, args.out_dir, start_date, end_date, convt)
+    
+    full_season_cc_integrate(args.out_dir, args.csv_dir, start_date, end_date, convt)
     
     return
 
