@@ -954,7 +954,7 @@ def main():
     if not qFlag:
         return
     
-    #full_season_cc_frame(args.in_dir, args.out_dir, start_date, end_date, convt)
+    full_season_cc_frame(args.in_dir, args.out_dir, start_date, end_date, convt)
     
     full_season_cc_integrate(args.out_dir, args.csv_dir, start_date, end_date, convt)
     
