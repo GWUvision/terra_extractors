@@ -965,7 +965,7 @@ def main():
     
     args = options()
     
-    start_date = '2019-07-18'
+    start_date = '2019-04-18'
     end_date = '2019-08-31'
     
     convt = terra_common.CoordinateConverter()
