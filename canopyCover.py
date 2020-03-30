@@ -24,6 +24,8 @@ SATUTATE_THRESHOLD = 245
 MAX_PIXEL_VAL = 255
 SMALL_AREA_THRESHOLD = 200
 
+os.environ['BETYDB_KEY'] = '9999999999999999999999999999999999999999'
+
 def options():
     
     parser = argparse.ArgumentParser(description='Canopy Cover Percent Extractor on Roger',
@@ -61,7 +63,6 @@ def full_season_cc_frame(raw_rgb_dir, out_dir, start_date, end_date, convt):
         if not os.path.isdir(out_path):
             os.makedirs(out_path)
         
-        #crop_rgb_imageToPlot(raw_path, out_path, plot_dir, convt)
         full_day_multi_process(raw_path, out_path, convt)
         #full_day_gen_cc(raw_path, out_path, convt)
     
@@ -937,29 +938,8 @@ def lower_keys(in_dict):
         return in_dict
 
 def fail(reason):
-    print >> sys.stderr, reason
+    print (reason)
     
-def main():
-    
-    print("start...")
-    
-    args = options()
-    
-    start_date = '2019-04-18'
-    end_date = '2019-08-31'
-    
-    convt = terra_common.CoordinateConverter()
-    qFlag = convt.bety_query('2019-06-18') # All plot boundaries in one season should be the same, currently 2019-06-18 works best
-    
-    if not qFlag:
-        return
-    
-    full_season_cc_frame(args.in_dir, args.out_dir, start_date, end_date, convt)
-    
-    full_season_cc_integrate(args.out_dir, args.csv_dir, start_date, end_date, convt)
-    
-    return
-
 def test():
     
     
@@ -977,6 +957,27 @@ def test():
     #full_season_cc_integrate(cc_dir, out_dir, start_date, end_date)
     #copy_csv_to_outdir(in_dir, out_dir, start_date, end_date)
     '''
+    return
+    
+def main():
+    
+    print("start...")
+    
+    args = options()
+    
+    start_date = '2019-07-18'
+    end_date = '2019-08-31'
+    
+    convt = terra_common.CoordinateConverter()
+    qFlag = convt.bety_query('2019-06-18') # All plot boundaries in one season should be the same, currently 2019-06-18 works best
+    
+    if not qFlag:
+        return
+    
+    full_season_cc_frame(args.in_dir, args.out_dir, start_date, end_date, convt)
+    
+    full_season_cc_integrate(args.out_dir, args.csv_dir, start_date, end_date, convt)
+    
     return
 
 if __name__ == "__main__":
