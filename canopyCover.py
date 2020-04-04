@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 import cv2
 
 #model = ganEnhancement.init_model()
-CPUS = 40
+CPUS = 28
 SATUTATE_THRESHOLD = 245
 MAX_PIXEL_VAL = 255
 SMALL_AREA_THRESHOLD = 200
@@ -628,15 +628,16 @@ def get_localdatetime(metadata):
 def get_CC_from_bin(file_path):
     
     image = process_image(file_path, [3296, 2472])
-    if image == None:
-        return -1
     
     cv2Image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     
-    ratio, outBin, ColorImg = gen_cc_enhanced_imageInput(cv2Image, 5)
     
-    if ratio == None:
+    rel = gen_cc_enhanced_imageInput(cv2Image, 5)
+    
+    if rel == None:
         return -1
+    
+    ratio, outBin, ColorImg = rel
     
     '''
     input_file = os.path.join(in_dir, f)
@@ -752,7 +753,7 @@ def gen_cc_enhanced_imageInput(input_img, kernelSize):
     
     # if low score, return None
     if low_rate > 0.15 or aveValue < 30 or aveValue > 195:
-        return None, None, None
+        return
     
     # saturated image process
     if over_rate > 0.15:
@@ -766,7 +767,7 @@ def gen_cc_enhanced_imageInput(input_img, kernelSize):
     
     rgbMask = gen_rgb_mask(input_img, binMask)
     
-    return ratio, binMask, rgbMask
+    return [ratio, binMask, rgbMask]
 
 def gen_plant_mask(colorImg, kernelSize=3, thre=1):
     
@@ -890,7 +891,7 @@ def process_image(im_path, shape):
         im_color = np.rot90(im_color)
     except Exception as ex:
         print('Can not convert file from bin to RGB: {}'.format(im_path))
-        return
+        return False
     return im_color
 
 def demosaic(im):
