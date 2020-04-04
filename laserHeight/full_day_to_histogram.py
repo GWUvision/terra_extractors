@@ -4,14 +4,16 @@ Created on Aug 9, 2016
 @author: Zongyang Li
 '''
 import cv2
-import os,sys,argparse, shutil, terra_common, requests
+import os,sys,argparse, shutil, requests
 import numpy as np
 from glob import glob
 from plyfile import PlyData, PlyElement
 from datetime import date, timedelta, datetime
-from terrautils import betydb
+#from terrautils import betydb
 import multiprocessing
 import analysis_utils
+sys.path.append("")
+import terra_common
 
 PLOT_RANGE_NUM = 54
 PLOT_COL_NUM = 32
@@ -31,6 +33,10 @@ E_F_OFFSET = 26.41
 W_TH_PERC = 0.41
 W_F_SLOPE = 0.98132
 W_F_OFFSET = 24.852
+
+CPUS = 28
+
+os.environ['BETYDB_KEY'] = '9999999999999999999999999999999999999999'
 
 def options():
     
@@ -120,7 +126,7 @@ def full_day_gen_hist_multi_process(ply_path, json_path, out_path, convt):
     
     print ("Starting ply to npy conversion...")
     pool = multiprocessing.Pool()
-    NUM_THREADS = min(40,numDirs)
+    NUM_THREADS = min(CPUS,numDirs)
     print('numDirs:{}   NUM_THREADS:{}'.format(numDirs, NUM_THREADS))
     for cpu in range(NUM_THREADS):
         pool.apply_async(ply_to_npy, [list_dirs[cpu::NUM_THREADS], json_dirs[cpu::NUM_THREADS], out_dirs[cpu::NUM_THREADS], convt])
@@ -157,8 +163,8 @@ def gen_hist_analysis(ply_path, json_path, out_dir, convt):
     
     for meta, ply_file_west, ply_file_east, gImgWest, pImgWest, gImgEast, pImgEast in zip(metas, ply_file_wests, ply_file_easts, gImgWests, pImgWests, gImgEasts, pImgEasts):
         json_dst = os.path.join(out_dir, meta)
-        #if os.path.exists(json_dst):
-        #    return
+        if os.path.exists(json_dst):
+            return
         
         metadata = analysis_utils.lower_keys(analysis_utils.load_json(os.path.join(json_path, meta))) # make all our keys lowercase since keys appear to change case (???)
         
@@ -701,7 +707,7 @@ def insert_height_traits_into_betydb(in_dir, out_dir, str_date, param_percentile
     
     csv.close()
     #submitToBety(out_file)
-    betydb.submit_traits(out_file, filetype='csv', betykey=betydb.get_bety_key(), betyurl=betydb.get_bety_url())
+    #betydb.submit_traits(out_file, filetype='csv', betykey=betydb.get_bety_key(), betyurl=betydb.get_bety_url())
     
     return
 
@@ -796,8 +802,8 @@ def full_season_laserHeight_frame(ply_dir, json_dir, out_dir, start_date, end_da
         if not os.path.isdir(out_path):
             os.makedirs(out_path)
         
-        #crop_rgb_imageToPlot(raw_path, out_path, plot_dir, convt)
-        full_day_gen_hist(ply_path, json_path, out_path, convt)
+        full_day_gen_hist_multi_process(ply_path, json_path, out_path, convt)
+        #full_day_gen_hist(ply_path, json_path, out_path, convt)
         #full_day_gen_cc(raw_path, out_path, convt)
     
     return
