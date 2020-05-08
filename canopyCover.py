@@ -18,13 +18,13 @@ from skimage import morphology
 import matplotlib.pyplot as plt
 import cv2
 
+SAVE_FLAG = False
+
 #model = ganEnhancement.init_model()
-CPUS = 28
+CPUS = 40
 SATUTATE_THRESHOLD = 245
 MAX_PIXEL_VAL = 255
 SMALL_AREA_THRESHOLD = 200
-
-os.environ['BETYDB_KEY'] = '9999999999999999999999999999999999999999'
 
 def options():
     
@@ -63,6 +63,7 @@ def full_season_cc_frame(raw_rgb_dir, out_dir, start_date, end_date, convt):
         if not os.path.isdir(out_path):
             os.makedirs(out_path)
         
+        #crop_rgb_imageToPlot(raw_path, out_path, plot_dir, convt)
         full_day_multi_process(raw_path, out_path, convt)
         #full_day_gen_cc(raw_path, out_path, convt)
     
@@ -364,7 +365,7 @@ def gen_cc(in_dir, out_dir, convt):
     if plot_row == 0 or plot_col == 0:
         return
     
-    cc = get_CC_from_bin(im_left)
+    cc, outBin, ColorImg = get_CC_from_bin(im_left, metadata, plot_row)
     
     if cc < 0:
         return
@@ -379,6 +380,11 @@ def gen_cc(in_dir, out_dir, convt):
     text_file.write("plot_col=%d\n" % plot_col)
     text_file.write("cc=%f" % cc)
     text_file.close()
+    
+    # optional save image
+    if SAVE_FLAG == True:
+        out_file_name = os.path.join(out_dir, 'img.jpg')
+        cv2.imwrite(out_file_name, ColorImg)
     
     return
 
@@ -624,20 +630,42 @@ def get_localdatetime(metadata):
         
     return localTime
 
+def get_r_balance_ratio_from_metadata(metadata):
+    
+    try:
+        sensor_variable_metadata = metadata['lemnatec_measurement_metadata']['sensor_variable_metadata']
+        rwhitebalanceratio_left = sensor_variable_metadata['rwhitebalanceratio - left']
+    except KeyError as err:
+        terra_common.fail('Metadata file missing key: ' + err.args[0])
+        return None
+    
+    rel = int(rwhitebalanceratio_left)
+    
+    return rel
 
-def get_CC_from_bin(file_path):
+
+def get_CC_from_bin(file_path, metadata, plot_row):
     
-    image = process_image(file_path, [3296, 2472])
-    
+    try:
+        image = process_image(file_path, [3296, 2472])
+    except KeyError as err:
+        terra_common.fail('Error generating image: ' + err.args[0])
+        return -1
+        
     cv2Image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     
-    
-    rel = gen_cc_enhanced_imageInput(cv2Image, 5)
-    
-    if rel == None:
+    rbalanceRatio = get_r_balance_ratio_from_metadata(metadata)
+    if rbalanceRatio == None:
         return -1
     
+    rel = gen_cc_enhanced_imageInput(cv2Image, 5, rbalanceRatio, plot_row)
+    
     ratio, outBin, ColorImg = rel
+    
+    if ratio == None:
+        return -1
+    
+
     
     '''
     input_file = os.path.join(in_dir, f)
@@ -660,7 +688,7 @@ def get_CC_from_bin(file_path):
         out_mask_file = os.path.join(debug_dir, base_name+'_'+str(round(ratio, 2))+'.png')
         cv2.imwrite(out_mask_file, ColorImg)
     '''
-    return ratio
+    return ratio, outBin, ColorImg
 
 
 def gen_cc_for_img(img, kernelSize):
@@ -743,8 +771,24 @@ def rgb2gray(rgb):
     gray = 0.2989 * r + 0.5870 * g + 0.1140 * b
     return gray
 
+BASE_RWHITEBALANCERATIO = 129
 
-def gen_cc_enhanced_imageInput(input_img, kernelSize):
+def adjust_color(colorImg, rbalanceRatio):
+    
+    r = colorImg[:,:,2]
+    
+    r = np.around(r * float((rbalanceRatio-(rbalanceRatio-BASE_RWHITEBALANCERATIO)/3)/rbalanceRatio))
+    
+    colorImg[:,:,2] = r
+    
+    return colorImg
+
+
+def gen_cc_enhanced_imageInput(input_img, kernelSize, rbalanceRatio, plot_row):
+    
+    # rgb adjust, testing
+    if plot_row > 54 and (rbalanceRatio > BASE_RWHITEBALANCERATIO):
+        input_img = adjust_color(input_img, rbalanceRatio)
     
     # calculate image scores
     over_rate, low_rate = check_saturation(input_img)
@@ -753,7 +797,7 @@ def gen_cc_enhanced_imageInput(input_img, kernelSize):
     
     # if low score, return None
     if low_rate > 0.15 or aveValue < 30 or aveValue > 195:
-        return
+        return None, None, None
     
     # saturated image process
     if over_rate > 0.15:
@@ -767,7 +811,7 @@ def gen_cc_enhanced_imageInput(input_img, kernelSize):
     
     rgbMask = gen_rgb_mask(input_img, binMask)
     
-    return [ratio, binMask, rgbMask]
+    return [ratio, binMask, input_img]
 
 def gen_plant_mask(colorImg, kernelSize=3, thre=1):
     
@@ -891,7 +935,6 @@ def process_image(im_path, shape):
         im_color = np.rot90(im_color)
     except Exception as ex:
         print('Can not convert file from bin to RGB: {}'.format(im_path))
-        return False
     return im_color
 
 def demosaic(im):
@@ -939,26 +982,7 @@ def lower_keys(in_dict):
         return in_dict
 
 def fail(reason):
-    print (reason)
-    
-def test():
-    
-    
-    im_left = '/media/zli/Elements/ua-mac/raw_data/stereoTop/2019-06-18/2019-06-18__10-39-39-399/d7f4fbf0-d476-48a6-b5b8-959ef8397998_left.bin'
-    
-    cc = get_CC_from_bin(im_left)
-    '''
-    in_dir = '/media/zli/Elements/ua-mac/Level_2/canopyCoverS4_integrate'
-    out_dir = '/media/zli/Elements/ua-mac/Level_2/ccS4_plots/csv_dir'
-    
-    start_date = '2017-04-27'
-    end_date = '2017-08-31'
-    
-    #full_day_gen_cc_from_image(in_dir, out_dir)
-    #full_season_cc_integrate(cc_dir, out_dir, start_date, end_date)
-    #copy_csv_to_outdir(in_dir, out_dir, start_date, end_date)
-    '''
-    return
+    print >> sys.stderr, reason
     
 def main():
     
@@ -979,6 +1003,43 @@ def main():
     
     full_season_cc_integrate(args.out_dir, args.csv_dir, start_date, end_date, convt)
     
+    return
+
+def test():
+    
+    
+    in_dir = '/media/zli/Elements/test/canopy_cover_debug/canopy_cover_debug'
+    img_base_name = '2019-08-06__12-25-53-851'
+    out_dir = '/media/zli/Elements/test/canopy_cover_debug/canopy_cover_debug/out_dir'
+    
+    img_file = os.path.join(in_dir, '{}.png'.format(img_base_name))
+    
+    cv2Image = cv2.imread(img_file, 1)
+    
+    ratio, outBin, ColorImg = gen_cc_enhanced_imageInput(cv2Image, 5, 170, 70)
+    if ratio == None:
+        print('low ratio')
+        return
+    
+    out_bin = '{}_mask_{}.png'.format(img_base_name, ratio)
+    out_bin_file = os.path.join(out_dir, out_bin)
+    cv2.imwrite(out_bin_file, outBin)
+    
+    out_color = '{}_color_{}.png'.format(img_base_name, ratio)
+    out_color_file = os.path.join(out_dir, out_color)
+    cv2.imwrite(out_color_file, ColorImg)
+    
+    '''
+    in_dir = '/media/zli/Elements/ua-mac/Level_2/canopyCoverS4_integrate'
+    out_dir = '/media/zli/Elements/ua-mac/Level_2/ccS4_plots/csv_dir'
+    
+    start_date = '2017-04-27'
+    end_date = '2017-08-31'
+    
+    #full_day_gen_cc_from_image(in_dir, out_dir)
+    #full_season_cc_integrate(cc_dir, out_dir, start_date, end_date)
+    #copy_csv_to_outdir(in_dir, out_dir, start_date, end_date)
+    '''
     return
 
 if __name__ == "__main__":
