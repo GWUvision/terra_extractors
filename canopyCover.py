@@ -21,10 +21,12 @@ import cv2
 SAVE_FLAG = False
 
 #model = ganEnhancement.init_model()
-CPUS = 40
+CPUS = 28
 SATUTATE_THRESHOLD = 245
 MAX_PIXEL_VAL = 255
 SMALL_AREA_THRESHOLD = 200
+
+os.environ['BETYDB_KEY'] = '9999999999999999999999999999999999999999'
 
 def options():
     
@@ -365,10 +367,12 @@ def gen_cc(in_dir, out_dir, convt):
     if plot_row == 0 or plot_col == 0:
         return
     
-    cc, outBin, ColorImg = get_CC_from_bin(im_left, metadata, plot_row)
+    rel = get_CC_from_bin(im_left, metadata, plot_row)
     
-    if cc < 0:
+    if rel == None:
         return
+    
+    cc, outBin, ColorImg = rel
     
     if not os.path.isdir(out_dir):
         os.mkdir(out_dir)
@@ -650,20 +654,15 @@ def get_CC_from_bin(file_path, metadata, plot_row):
         image = process_image(file_path, [3296, 2472])
     except KeyError as err:
         terra_common.fail('Error generating image: ' + err.args[0])
-        return -1
+        return
         
     cv2Image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     
     rbalanceRatio = get_r_balance_ratio_from_metadata(metadata)
     if rbalanceRatio == None:
-        return -1
+        return
     
     rel = gen_cc_enhanced_imageInput(cv2Image, 5, rbalanceRatio, plot_row)
-    
-    ratio, outBin, ColorImg = rel
-    
-    if ratio == None:
-        return -1
     
 
     
@@ -688,7 +687,7 @@ def get_CC_from_bin(file_path, metadata, plot_row):
         out_mask_file = os.path.join(debug_dir, base_name+'_'+str(round(ratio, 2))+'.png')
         cv2.imwrite(out_mask_file, ColorImg)
     '''
-    return ratio, outBin, ColorImg
+    return rel
 
 
 def gen_cc_for_img(img, kernelSize):
@@ -797,7 +796,7 @@ def gen_cc_enhanced_imageInput(input_img, kernelSize, rbalanceRatio, plot_row):
     
     # if low score, return None
     if low_rate > 0.15 or aveValue < 30 or aveValue > 195:
-        return None, None, None
+        return
     
     # saturated image process
     if over_rate > 0.15:
