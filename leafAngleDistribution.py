@@ -1778,7 +1778,7 @@ def main():
     if not qFlag:
         return
     
-    #full_season_leafAngle_frame(args.ply_dir, args.json_dir, args.out_dir, args.save_dir, start_date, end_date, convt)
+    full_season_leafAngle_frame(args.ply_dir, args.json_dir, args.out_dir, args.save_dir, start_date, end_date, convt)
     
     full_season_leafAngle_integrate(args.out_dir, args.save_dir, args.bety_dir, start_date, end_date, convt)
     
